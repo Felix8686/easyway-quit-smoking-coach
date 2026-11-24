@@ -65,9 +65,9 @@ python3 scripts/heartbeat.py --dry-run --mock-scenario due
 
 ---
 
-## 🚀 部署至 GitHub 私有仓库
+## 🚀 部署至 GitHub
 
-在 GitHub 创建全新的空私有仓库（例如 `easyway-quit-smoking-coach`）后，在本地终端执行：
+在 GitHub 创建新仓库后，在本地终端执行：
 
 ```bash
 cd easyway-quit-smoking-coach
@@ -82,40 +82,40 @@ git push -u origin main
 
 ---
 
-## 🤖 云端 Hermes Agent 接入清单
+## 🤖 云端 Agent 接入清单
 
-将本技能部署到云端运行 Hermes Agent 的主机（如 Debian VPS）：
+将本技能部署到运行 Agent（如各类定时任务或自主智能体）的云端或本地环境：
 
 ### 1. 克隆仓库至技能目录
 ```bash
-mkdir -p ~/.hermes/skills
-git clone git@github.com:<YOUR_GITHUB_USERNAME>/easyway-quit-smoking-coach.git ~/.hermes/skills/easyway-quit-smoking-coach
+mkdir -p ~/.agent/skills
+git clone git@github.com:<YOUR_GITHUB_USERNAME>/easyway-quit-smoking-coach.git ~/.agent/skills/easyway-quit-smoking-coach
 ```
 
 ### 2. 配置文件持久化与环境变量
-将真实的个人进度文件存放在外部安全目录（如 `~/.hermes/data/easyway_state.json`）：
+将真实的状态进度文件存放在外部安全目录（如 `~/.config/easyway/state.json`）：
 
 ```bash
-export EASYWAY_STATE_PATH="$HOME/.hermes/data/easyway_state.json"
+export EASYWAY_STATE_PATH="$HOME/.config/easyway/state.json"
 
 # 初始化真实状态
-python3 ~/.hermes/skills/easyway-quit-smoking-coach/scripts/heartbeat.py --init
+python3 ~/.agent/skills/easyway-quit-smoking-coach/scripts/heartbeat.py --init
 ```
-并在用户的环境变量配置（如 `~/.bashrc` 或 systemd 服务环境）中持久化 `EASYWAY_STATE_PATH`。
+并在环境配置（如 `~/.bashrc` 或 systemd 服务环境）中持久化 `EASYWAY_STATE_PATH`。
 
 ### 3. 配置定时任务（Cron）
 配置系统定时任务（如每 10 分钟执行一次心跳预检）：
 ```bash
 crontab -e
 ```
-添加以下任务。心跳脚本零开销执行，仅在 `should_trigger` 为 `true` 时才唤醒 Hermes Agent 处理，极大节省模型 Token：
+添加以下任务。心跳脚本零开销执行，仅在 `should_trigger` 为 `true` 时才唤醒 Agent 处理，极大节省模型 Token：
 
 ```cron
-*/10 * * * * bash -c 'OUTPUT=$(python3 $HOME/.hermes/skills/easyway-quit-smoking-coach/scripts/heartbeat.py); if echo "$OUTPUT" | grep -q "\"should_trigger\": true"; then hermes run --skill easyway-quit-smoking-coach --input "$OUTPUT"; fi'
+*/10 * * * * bash -c 'OUTPUT=$(python3 $HOME/.agent/skills/easyway-quit-smoking-coach/scripts/heartbeat.py); if echo "$OUTPUT" | grep -q "\"should_trigger\": true"; then agent run --skill easyway-quit-smoking-coach --input "$OUTPUT"; fi'
 ```
 
-### 4. 绑定独立 Telegram Topic
+### 4. 绑定独立通知频道 / Topic
 为防止戒烟私教消息打扰其他日常对话：
-1. 在 Telegram 群组或 Hermes 频道中创建一个专用 Topic（例如命名为 `🚭 轻松戒烟教练`）。
-2. 在 Hermes Agent 路由配置中，将 `easyway-quit-smoking-coach` 产生的主动推送与会话路由绑定到该 Topic ID。
+1. 在群组或通知渠道中创建一个专用 Topic / 子频道（例如命名为 `🚭 轻松戒烟教练`）。
+2. 在 Agent 路由配置中，将 `easyway-quit-smoking-coach` 产生的主动推送与会话路由绑定到该 Topic ID。
 3. Agent 发出消息后，自动根据用户反馈或阶段更新 `state.json` 中的 `next_check_at` 与 `unread_streak`。
