@@ -64,15 +64,18 @@ def calculate_elapsed_text(delta: timedelta) -> str:
     minutes = (total_seconds % 3600) // 60
 
     if days > 0:
+        parts = [f"{days}天"]
+        if hours > 0:
+            parts.append(f"{hours}小时")
         if minutes > 0:
-            return f"{days}天{hours}小时{minutes}分钟"
-        return f"{days}天{hours}小时"
+            parts.append(f"{minutes}分钟")
+        return "".join(parts)
     elif hours > 0:
         if minutes > 0:
             return f"{hours}小时{minutes}分钟"
         return f"{hours}小时"
     else:
-        return f"{max(1, minutes)}分钟"
+        return f"{minutes}分钟"
 
 
 def determine_stage(total_seconds: int) -> int:
@@ -155,10 +158,11 @@ def evaluate_heartbeat(state: dict, now: datetime, state_path: Path) -> dict:
 
     # 5. next_check_at check
     next_check_str = state.get("next_check_at")
-    if next_check_str:
-        next_check_dt = parse_iso(next_check_str, tz)
-        if next_check_dt and now < next_check_dt:
-            return {"should_trigger": False, "reason": "not_due_yet"}
+    if not next_check_str:
+        return {"should_trigger": False, "reason": "not_scheduled"}
+    next_check_dt = parse_iso(next_check_str, tz)
+    if next_check_dt and now < next_check_dt:
+        return {"should_trigger": False, "reason": "not_due_yet"}
 
     # All checks passed -> trigger check-in
     quit_started_str = state.get("quit_started_at")
