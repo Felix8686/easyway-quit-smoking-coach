@@ -13,10 +13,12 @@
 2. **代码与数据严格分离**：
    - 个人进度保存在仓库外部的独立 `state.json` 文件中，通过环境变量 `EASYWAY_STATE_PATH` 指向。
    - 仓库内仅保留 `templates/state.example.json` 模板，`.gitignore` 严格忽略所有真实状态数据，保护个人隐私。
-3. **Easyway 方法论**：
-   - 坚决不用意志力硬扛，不恐吓，不用尼古丁替代品。
-   - 拆解“心理大怪兽”（看穿减压/解闷/社交的假象），重塑“生理小怪兽”（饥饿感是毒虫正在饿死的胜利信号）。
-   - 四阶段动态主动节奏与情绪缩放。
+3. **Easyway 方法论 + 医疗安全边界**：
+   - 不用意志力硬扛，不用健康恐吓；承认戒断体验因人而异。
+   - 支持无药物戒烟，也不贬低或阻止 NRT、伐尼克兰、安非他酮等循证治疗；涉及用药、特殊人群或严重症状时转介专业医疗帮助。
+   - 拆解吸烟的减压、解闷与社交错觉，同时保留四阶段动态主动节奏与情绪缩放。
+
+> **医疗说明**：本项目提供行为支持，不替代医生或戒烟门诊。其安全边界参考 [WHO 2024 成人烟草戒断临床治疗指南](https://www.who.int/publications/b/74755) 与 [CDC 戒烟药物说明](https://www.cdc.gov/tobacco/campaign/tips/quit-smoking/quit-smoking-medications/which-quit-smoking-medicine-is-right-for-you/index.html)。
 
 ---
 
