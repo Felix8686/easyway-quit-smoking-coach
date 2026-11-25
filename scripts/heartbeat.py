@@ -184,17 +184,102 @@ def evaluate_heartbeat(state: dict, now: datetime, state_path: Path) -> dict:
     }
 
 
+def parse_hhmm(hhmm: str) -> time:
+    """Validate and parse HH:MM string into a time object."""
+    parts = hhmm.strip().split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid HH:MM format: {hhmm}")
+    return time(int(parts[0]), int(parts[1]))
+
+
+def apply_state_mutation(state: dict, args, now: datetime) -> bool:
+    """
+    Apply deterministic state updates anchored to real system clock `now`.
+    Returns True if a mutation action was performed.
+    """
+    mutated = False
+    tz = now.tzinfo
+
+    if args.pause_until_time:
+        target_t = parse_hhmm(args.pause_until_time)
+        target_date = now.date() + timedelta(days=args.days_offset)
+        target_dt = datetime.combine(target_date, target_t, tzinfo=tz)
+        if args.days_offset == 0 and target_dt <= now:
+            raise ValueError("Target time today is already in the past; pass --days-offset 1 for tomorrow.")
+        state["active"] = True
+        state["paused_until"] = target_dt.isoformat()
+        state["next_check_at"] = target_dt.isoformat()
+        state["last_sent_at"] = None
+        if args.restart_on_resume:
+            state["quit_started_at"] = target_dt.isoformat()
+        mutated = True
+    elif args.pause_hours is not None:
+        if args.pause_hours <= 0:
+            raise ValueError("--pause-hours must be positive.")
+        target_dt = now + timedelta(hours=args.pause_hours)
+        state["paused_until"] = target_dt.isoformat()
+        existing_next = parse_iso(state.get("next_check_at"), tz)
+        if not existing_next or existing_next < target_dt:
+            state["next_check_at"] = target_dt.isoformat()
+        mutated = True
+    elif args.restart_now:
+        next_m = args.next_in_minutes if args.next_in_minutes is not None else 40
+        state["active"] = True
+        state["quit_started_at"] = now.isoformat()
+        state["paused_until"] = None
+        state["last_sent_at"] = None
+        state["next_check_at"] = (now + timedelta(minutes=next_m)).isoformat()
+        mutated = True
+    elif args.resume:
+        next_m = args.next_in_minutes if args.next_in_minutes is not None else 40
+        state["active"] = True
+        state["paused_until"] = None
+        state["next_check_at"] = (now + timedelta(minutes=next_m)).isoformat()
+        mutated = True
+    elif args.ack_reply:
+        if args.next_in_minutes is not None:
+            state["next_check_at"] = (now + timedelta(minutes=args.next_in_minutes)).isoformat()
+        mutated = True
+
+    if args.set_quiet_hours:
+        start_s, end_s = args.set_quiet_hours
+        parse_hhmm(start_s)
+        parse_hhmm(end_s)
+        state["quiet_hours"] = {"start": start_s, "end": end_s}
+        mutated = True
+
+    if mutated:
+        state["unread_streak"] = 0
+        state["last_user_reply_at"] = now.isoformat()
+        if args.mood is not None:
+            state["last_mood"] = args.mood
+
+    return mutated
+
+
 def main():
     parser = argparse.ArgumentParser(description="EasyWay Quit Smoking Coach Heartbeat Evaluator")
     parser.add_argument("--state-path", type=str, help="Path to state.json (defaults to EASYWAY_STATE_PATH env)")
     parser.add_argument("--init", action="store_true", help="Initialize state file from template")
-    parser.add_argument("--dry-run", action="store_true", help="Run heartbeat evaluation in simulation mode")
+    parser.add_argument("--dry-run", action="store_true", help="Run evaluation or mutation without writing to disk")
     parser.add_argument(
         "--mock-scenario",
         choices=["not_due", "quiet", "due"],
         help="Simulate a scenario for --dry-run: 'not_due', 'quiet', or 'due'"
     )
     parser.add_argument("--mock-now", type=str, help="Override current time for testing (ISO format)")
+
+    # Safe state mutation options (anchored to real clock to prevent LLM date hallucinations)
+    parser.add_argument("--pause-until-time", type=str, metavar="HH:MM", help="Pause until HH:MM (use with --days-offset)")
+    parser.add_argument("--days-offset", type=int, default=0, help="Days from today for --pause-until-time (1 = tomorrow)")
+    parser.add_argument("--restart-on-resume", action="store_true", help="Also set quit_started_at to resume time")
+    parser.add_argument("--pause-hours", type=float, help="Pause proactive pushes for N hours from now")
+    parser.add_argument("--restart-now", action="store_true", help="Restart quit timer from current time")
+    parser.add_argument("--resume", action="store_true", help="Clear paused_until and resume active pushes")
+    parser.add_argument("--ack-reply", action="store_true", help="Reset unread_streak and update last_user_reply_at")
+    parser.add_argument("--next-in-minutes", type=int, help="Schedule next_check_at N minutes from now")
+    parser.add_argument("--set-quiet-hours", nargs=2, metavar=("START", "END"), help="Update quiet_hours HH:MM HH:MM")
+    parser.add_argument("--mood", type=str, help="Optional last_mood value when updating state")
 
     args = parser.parse_args()
     script_dir = Path(__file__).resolve().parent
@@ -236,6 +321,18 @@ def main():
         now = parse_iso(args.mock_now, tz)
     else:
         now = datetime.now(tz)
+
+    # Handle state mutation mode first if any mutation flag was passed
+    try:
+        if apply_state_mutation(state, args, now):
+            if not args.dry_run:
+                with open(state_path, "w", encoding="utf-8") as f:
+                    json.dump(state, f, ensure_ascii=False, indent=2)
+            print(json.dumps({"updated": True, "dry_run": bool(args.dry_run), "state": state}, ensure_ascii=False))
+            sys.exit(0)
+    except ValueError as ve:
+        print(f"Error: {ve}", file=sys.stderr)
+        sys.exit(1)
 
     # Apply mock scenario adjustments if specified
     if args.dry_run and args.mock_scenario:
