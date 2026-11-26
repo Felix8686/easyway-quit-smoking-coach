@@ -29,6 +29,8 @@ easyway-quit-smoking-coach/
 ├── .gitignore                      # 忽略敏感 state 及环境文件
 ├── README.md                       # 项目与接入说明
 ├── SKILL.md                        # Easyway 私教技能 Prompt 与状态机规范
+├── references/
+│   └── easyway-book-map.md         # 原书 44 章论证链、情境索引与安全取舍
 ├── templates/
 │   └── state.example.json          # 状态文件模板（字段说明与默认配置）
 └── scripts/
